@@ -130,8 +130,9 @@ module design_1_wrapper
   wire m_axi_lite_wvalid;
 
   wire mig_calib_done;
-  wire mig_clk;
+  wire mig_clk, mig_clk_raw;
   wire [0:0]mig_rstn;
+  wire ddr4_clk, ddr4_reset;
 
   wire [3:0]pci_express_x4_rxn;
   wire [3:0]pci_express_x4_rxp;
@@ -149,6 +150,12 @@ module design_1_wrapper
   wire reset;
   wire reset_gpio;
   wire [3:0] led;
+  
+  BUFGCE BUFGCE_inst 
+  (.O (mig_clk)
+  ,.CE(~reset)
+  ,.I (mig_clk_raw)
+  );
 
   wire [29:0]s_axi_araddr;
   wire [1:0]s_axi_arburst;
@@ -647,6 +654,143 @@ always_comb
   assign s_axi_arregion = '0;
   assign s_axi_awqos    = '0;
   assign s_axi_awregion = '0;
+  
+  
+  // DEBUG
+  wire [29:0] s_axi_debug_araddr;
+  wire [1:0]  s_axi_debug_arburst;
+  wire [3:0]  s_axi_debug_arcache;
+  wire [0:0]  s_axi_debug_arid;
+  wire [7:0]  s_axi_debug_arlen;
+  wire [0:0]  s_axi_debug_arlock;
+  wire [2:0]  s_axi_debug_arprot;
+  wire        s_axi_debug_arready;
+  wire [2:0]  s_axi_debug_arsize;
+  wire        s_axi_debug_arvalid;
+
+  wire [29:0] s_axi_debug_awaddr;
+  wire [1:0]  s_axi_debug_awburst;
+  wire [3:0]  s_axi_debug_awcache;
+  wire [0:0]  s_axi_debug_awid;
+  wire [7:0]  s_axi_debug_awlen;
+  wire [0:0]  s_axi_debug_awlock;
+  wire [2:0]  s_axi_debug_awprot;
+  wire        s_axi_debug_awready;
+  wire [2:0]  s_axi_debug_awsize;
+  wire        s_axi_debug_awvalid;
+
+  wire [0:0]  s_axi_debug_bid;
+  wire        s_axi_debug_bready;
+  wire [1:0]  s_axi_debug_bresp;
+  wire        s_axi_debug_bvalid;
+
+  wire [255:0]s_axi_debug_rdata;
+  wire [0:0]  s_axi_debug_rid;
+  wire        s_axi_debug_rlast;
+  wire        s_axi_debug_rready;
+  wire [1:0]  s_axi_debug_rresp;
+  wire        s_axi_debug_rvalid;
+
+  wire [255:0]s_axi_debug_wdata;
+  wire        s_axi_debug_wlast;
+  wire        s_axi_debug_wready;
+  wire [31:0] s_axi_debug_wstrb;
+  wire        s_axi_debug_wvalid;
+  
+  wire ar_async_fifo_full_lo;
+  assign s_axi_debug_arready = ~ar_async_fifo_full_lo;
+  bsg_async_fifo
+ #(.lg_size_p(3)
+  ,.width_p  (52)
+  ) ar_async_fifo
+  (.w_clk_i  (mig_clk)
+  ,.w_reset_i(mig_reset)
+  ,.w_enq_i  (s_axi_debug_arvalid & s_axi_debug_arready)
+  ,.w_data_i ({s_axi_debug_araddr, s_axi_debug_arburst, s_axi_debug_arcache, s_axi_debug_arid, s_axi_debug_arlen, s_axi_debug_arlock, s_axi_debug_arprot, s_axi_debug_arsize})
+  ,.w_full_o (ar_async_fifo_full_lo)
+
+  ,.r_clk_i  (ddr4_clk)
+  ,.r_reset_i(ddr4_reset)
+  ,.r_deq_i  (s_axi_arvalid & s_axi_arready)
+  ,.r_data_o ({s_axi_araddr, s_axi_arburst, s_axi_arcache, s_axi_arid, s_axi_arlen, s_axi_arlock, s_axi_arprot, s_axi_arsize})
+  ,.r_valid_o(s_axi_arvalid)
+  );
+
+  wire aw_async_fifo_full_lo;
+  assign s_axi_debug_awready = ~aw_async_fifo_full_lo;
+  bsg_async_fifo
+ #(.lg_size_p(3)
+  ,.width_p  (52)
+  ) aw_async_fifo
+  (.w_clk_i  (mig_clk)
+  ,.w_reset_i(mig_reset)
+  ,.w_enq_i  (s_axi_debug_awvalid & s_axi_debug_awready)
+  ,.w_data_i ({s_axi_debug_awaddr, s_axi_debug_awburst, s_axi_debug_awcache, s_axi_debug_awid, s_axi_debug_awlen, s_axi_debug_awlock, s_axi_debug_awprot, s_axi_debug_awsize})
+  ,.w_full_o (aw_async_fifo_full_lo)
+
+  ,.r_clk_i  (ddr4_clk)
+  ,.r_reset_i(ddr4_reset)
+  ,.r_deq_i  (s_axi_awvalid & s_axi_awready)
+  ,.r_data_o ({s_axi_awaddr, s_axi_awburst, s_axi_awcache, s_axi_awid, s_axi_awlen, s_axi_awlock, s_axi_awprot, s_axi_awsize})
+  ,.r_valid_o(s_axi_awvalid)
+  );
+
+  wire b_async_fifo_full_lo;
+  assign s_axi_bready = ~b_async_fifo_full_lo;
+  bsg_async_fifo
+ #(.lg_size_p(3)
+  ,.width_p  (3)
+  ) b_async_fifo
+  (.w_clk_i  (ddr4_clk)
+  ,.w_reset_i(ddr4_reset)
+  ,.w_enq_i  (s_axi_bvalid & s_axi_bready)
+  ,.w_data_i ({s_axi_bid, s_axi_bresp})
+  ,.w_full_o (b_async_fifo_full_lo)
+
+  ,.r_clk_i  (mig_clk)
+  ,.r_reset_i(mig_reset)
+  ,.r_deq_i  (s_axi_debug_bvalid & s_axi_debug_bready)
+  ,.r_data_o ({s_axi_debug_bid, s_axi_debug_bresp})
+  ,.r_valid_o(s_axi_debug_bvalid)
+  );
+
+  wire r_async_fifo_full_lo;
+  assign s_axi_rready = ~r_async_fifo_full_lo;
+  bsg_async_fifo
+ #(.lg_size_p(3)
+  ,.width_p  (260)
+  ) r_async_fifo
+  (.w_clk_i  (ddr4_clk)
+  ,.w_reset_i(ddr4_reset)
+  ,.w_enq_i  (s_axi_rvalid & s_axi_rready)
+  ,.w_data_i ({s_axi_rdata, s_axi_rid, s_axi_rlast, s_axi_rresp})
+  ,.w_full_o (r_async_fifo_full_lo)
+
+  ,.r_clk_i  (mig_clk)
+  ,.r_reset_i(mig_reset)
+  ,.r_deq_i  (s_axi_debug_rvalid & s_axi_debug_rready)
+  ,.r_data_o ({s_axi_debug_rdata, s_axi_debug_rid, s_axi_debug_rlast, s_axi_debug_rresp})
+  ,.r_valid_o(s_axi_debug_rvalid)
+  );
+  
+  wire w_async_fifo_full_lo;
+  assign s_axi_debug_wready = ~w_async_fifo_full_lo;
+  bsg_async_fifo
+ #(.lg_size_p(3)
+  ,.width_p  (289)
+  ) w_async_fifo
+  (.w_clk_i  (mig_clk)
+  ,.w_reset_i(mig_reset)
+  ,.w_enq_i  (s_axi_debug_wvalid & s_axi_debug_wready)
+  ,.w_data_i ({s_axi_debug_wdata, s_axi_debug_wlast, s_axi_debug_wstrb})
+
+  ,.r_clk_i  (ddr4_clk)
+  ,.r_reset_i(ddr4_reset)
+  ,.r_deq_i  (s_axi_wvalid & s_axi_wready)
+  ,.r_data_o ({s_axi_wdata, s_axi_wlast, s_axi_wstrb})
+  ,.r_valid_o(s_axi_wvalid)
+  );
+
 
   bsg_cache_to_axi 
  #(.addr_width_p         (cache_addr_width_p)
@@ -675,45 +819,45 @@ always_comb
   ,.dma_data_v_i    (dma_data_v_lo)
   ,.dma_data_yumi_o (dma_data_yumi_li)
 
-  ,.axi_awid_o      (s_axi_awid)
-  ,.axi_awaddr_o    (s_axi_awaddr)
-  ,.axi_awlen_o     (s_axi_awlen)
-  ,.axi_awsize_o    (s_axi_awsize)
-  ,.axi_awburst_o   (s_axi_awburst)
-  ,.axi_awcache_o   (s_axi_awcache)
-  ,.axi_awprot_o    (s_axi_awprot)
-  ,.axi_awlock_o    (s_axi_awlock)
-  ,.axi_awvalid_o   (s_axi_awvalid)
-  ,.axi_awready_i   (s_axi_awready)
-                    
-  ,.axi_wdata_o     (s_axi_wdata)
-  ,.axi_wstrb_o     (s_axi_wstrb)
-  ,.axi_wlast_o     (s_axi_wlast)
-  ,.axi_wvalid_o    (s_axi_wvalid)
-  ,.axi_wready_i    (s_axi_wready)
-                    
-  ,.axi_bid_i       (s_axi_bid)
-  ,.axi_bresp_i     (s_axi_bresp)
-  ,.axi_bvalid_i    (s_axi_bvalid)
-  ,.axi_bready_o    (s_axi_bready)
-                    
-  ,.axi_arid_o      (s_axi_arid)
-  ,.axi_araddr_o    (s_axi_araddr)
-  ,.axi_arlen_o     (s_axi_arlen)
-  ,.axi_arsize_o    (s_axi_arsize)
-  ,.axi_arburst_o   (s_axi_arburst)
-  ,.axi_arcache_o   (s_axi_arcache)
-  ,.axi_arprot_o    (s_axi_arprot)
-  ,.axi_arlock_o    (s_axi_arlock)
-  ,.axi_arvalid_o   (s_axi_arvalid)
-  ,.axi_arready_i   (s_axi_arready)
-                    
-  ,.axi_rid_i       (s_axi_rid)
-  ,.axi_rdata_i     (s_axi_rdata)
-  ,.axi_rresp_i     (s_axi_rresp)
-  ,.axi_rlast_i     (s_axi_rlast)
-  ,.axi_rvalid_i    (s_axi_rvalid)
-  ,.axi_rready_o    (s_axi_rready)
+  ,.axi_awid_o      (s_axi_debug_awid)
+  ,.axi_awaddr_o    (s_axi_debug_awaddr)
+  ,.axi_awlen_o     (s_axi_debug_awlen)
+  ,.axi_awsize_o    (s_axi_debug_awsize)
+  ,.axi_awburst_o   (s_axi_debug_awburst)
+  ,.axi_awcache_o   (s_axi_debug_awcache)
+  ,.axi_awprot_o    (s_axi_debug_awprot)
+  ,.axi_awlock_o    (s_axi_debug_awlock)
+  ,.axi_awvalid_o   (s_axi_debug_awvalid)
+  ,.axi_awready_i   (s_axi_debug_awready)
+
+  ,.axi_wdata_o     (s_axi_debug_wdata)
+  ,.axi_wstrb_o     (s_axi_debug_wstrb)
+  ,.axi_wlast_o     (s_axi_debug_wlast)
+  ,.axi_wvalid_o    (s_axi_debug_wvalid)
+  ,.axi_wready_i    (s_axi_debug_wready)
+
+  ,.axi_bid_i       (s_axi_debug_bid)
+  ,.axi_bresp_i     (s_axi_debug_bresp)
+  ,.axi_bvalid_i    (s_axi_debug_bvalid)
+  ,.axi_bready_o    (s_axi_debug_bready)
+
+  ,.axi_arid_o      (s_axi_debug_arid)
+  ,.axi_araddr_o    (s_axi_debug_araddr)
+  ,.axi_arlen_o     (s_axi_debug_arlen)
+  ,.axi_arsize_o    (s_axi_debug_arsize)
+  ,.axi_arburst_o   (s_axi_debug_arburst)
+  ,.axi_arcache_o   (s_axi_debug_arcache)
+  ,.axi_arprot_o    (s_axi_debug_arprot)
+  ,.axi_arlock_o    (s_axi_debug_arlock)
+  ,.axi_arvalid_o   (s_axi_debug_arvalid)
+  ,.axi_arready_i   (s_axi_debug_arready)
+
+  ,.axi_rid_i       (s_axi_debug_rid)
+  ,.axi_rdata_i     (s_axi_debug_rdata)
+  ,.axi_rresp_i     (s_axi_debug_rresp)
+  ,.axi_rlast_i     (s_axi_debug_rlast)
+  ,.axi_rvalid_i    (s_axi_debug_rvalid)
+  ,.axi_rready_o    (s_axi_debug_rready)
   );
   
   // LED breathing
@@ -770,8 +914,10 @@ always_comb
         .m_axi_lite_wstrb(m_axi_lite_wstrb),
         .m_axi_lite_wvalid(m_axi_lite_wvalid),
         .mig_calib_done(mig_calib_done),
-        .mig_clk(mig_clk),
+        .mig_clk(mig_clk_raw),
         .mig_rstn(mig_rstn),
+        .ddr4_clk(ddr4_clk),
+        .ddr4_reset(ddr4_reset),
         .pci_express_x4_rxn(pci_express_x4_rxn),
         .pci_express_x4_rxp(pci_express_x4_rxp),
         .pci_express_x4_txn(pci_express_x4_txn),
@@ -782,7 +928,7 @@ always_comb
         .pcie_refclk_clk_n(pcie_refclk_clk_n),
         .pcie_refclk_clk_p(pcie_refclk_clk_p),
         .pcie_rstn(pcie_rstn),
-        .reset(reset | reset_gpio),
+        .reset(reset_gpio),
         .s_axi_araddr(s_axi_araddr),
         .s_axi_arburst(s_axi_arburst),
         .s_axi_arcache(s_axi_arcache),
@@ -792,7 +938,6 @@ always_comb
         .s_axi_arprot(s_axi_arprot),
         .s_axi_arqos(s_axi_arqos),
         .s_axi_arready(s_axi_arready),
-        .s_axi_arregion(s_axi_arregion),
         .s_axi_arsize(s_axi_arsize),
         .s_axi_arvalid(s_axi_arvalid),
         .s_axi_awaddr(s_axi_awaddr),
@@ -804,7 +949,6 @@ always_comb
         .s_axi_awprot(s_axi_awprot),
         .s_axi_awqos(s_axi_awqos),
         .s_axi_awready(s_axi_awready),
-        .s_axi_awregion(s_axi_awregion),
         .s_axi_awsize(s_axi_awsize),
         .s_axi_awvalid(s_axi_awvalid),
         .s_axi_bid(s_axi_bid),

@@ -125,7 +125,7 @@ module bsg_m_axi_lite_to_fifo
   assign ready_lo = ~buffer_async_fifo_full_lo;
   
   bsg_async_fifo
- #(.lg_size_p(8)
+ #(.lg_size_p(3)
   ,.width_p  (data_width_p)
   ) buffer_async_fifo
   (.w_clk_i  (clk_i)
@@ -238,7 +238,7 @@ module bsg_m_axi_lite_to_fifo
   assign data_fifo_ready_lo = ~data_async_fifo_full_lo;
   
   bsg_async_fifo
- #(.lg_size_p(8)
+ #(.lg_size_p(3)
   ,.width_p  (addr_width_p)
   ) addr_async_fifo
   (.w_clk_i  (pcie_clk_i)
@@ -255,7 +255,7 @@ module bsg_m_axi_lite_to_fifo
   );
   
   bsg_async_fifo
- #(.lg_size_p(8)
+ #(.lg_size_p(3)
   ,.width_p  (data_width_p)
   ) data_async_fifo
   (.w_clk_i  (pcie_clk_i)
