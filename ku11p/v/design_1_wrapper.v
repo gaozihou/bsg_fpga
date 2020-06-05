@@ -133,6 +133,7 @@ module design_1_wrapper
   wire mig_clk, mig_clk_raw;
   wire [0:0]mig_rstn;
   wire ddr4_clk, ddr4_reset;
+  wire lpddr_clk, lpddr_clk_raw;
 
   wire [3:0]pci_express_x4_rxn;
   wire [3:0]pci_express_x4_rxp;
@@ -151,10 +152,25 @@ module design_1_wrapper
   wire reset_gpio;
   wire [3:0] led;
   
-  BUFGCE BUFGCE_inst 
+  BUFGCE BUFGCE_mig 
   (.O (mig_clk)
   ,.CE(~reset)
   ,.I (mig_clk_raw)
+  );
+  
+  BUFGCE BUFGCE_lpddr
+  (.O (lpddr_clk)
+  ,.CE(~reset)
+  ,.I (lpddr_clk_raw)
+  );
+  
+  design_2 design_2_i
+  (.clk  (ddr4_clk)
+  ,.en   (~reset)
+  ,.raw1 (mig_clk_raw)
+  ,.gate1(mig_clk)
+  ,.raw2 (lpddr_clk_raw)
+  ,.gate2(lpddr_clk)
   );
 
   wire [29:0]s_axi_araddr;
@@ -918,6 +934,7 @@ always_comb
         .mig_rstn(mig_rstn),
         .ddr4_clk(ddr4_clk),
         .ddr4_reset(ddr4_reset),
+        .lpddr_clk(lpddr_clk_raw),
         .pci_express_x4_rxn(pci_express_x4_rxn),
         .pci_express_x4_rxp(pci_express_x4_rxp),
         .pci_express_x4_txn(pci_express_x4_txn),
