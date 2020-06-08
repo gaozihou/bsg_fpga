@@ -15,6 +15,14 @@ blackparrot_dir := $(THIS_DIR)/black-parrot
 blackparrot_url := $(GITHUB)black-parrot/black-parrot
 blackparrot_commit := 1008321
 
+basejump_stl_dir := $(THIS_DIR)/basejump_stl
+basejump_stl_url := $(GITHUB)bespoke-silicon-group/basejump_stl
+basejump_stl_commit := 97552f9
+
+tapeout_dir := $(THIS_DIR)/bsg_tapeout_v1_tsmc40
+tapeout_url := $(GITHUB)gaozihou/bsg_tapeout_v1_tsmc40
+tapeout_commit := 00b1a58
+
 
 vivado_bin := $(XILINX_VIVADO)/bin/vivado
 
@@ -31,11 +39,19 @@ update_tcl_dir := $(script_dir)/update_tcl.tcl
 
 all: libs
 
-libs: $(blackparrot_dir)
+libs: $(blackparrot_dir) $(basejump_stl_dir) $(tapeout_dir)
 
 $(blackparrot_dir):
 	git clone $(blackparrot_url) $(blackparrot_dir)
 	cd $(blackparrot_dir); git checkout $(blackparrot_commit)
+
+$(basejump_stl_dir):
+	git clone $(basejump_stl_url) $(basejump_stl_dir)
+	cd $(basejump_stl_dir); git checkout $(basejump_stl_commit)
+    
+$(tapeout_dir):
+	git clone $(tapeout_url) $(tapeout_dir)
+	cd $(tapeout_dir); git checkout $(tapeout_commit)
 
 build: $(project_dir)
 
@@ -56,7 +72,7 @@ update_tcl:
 	$(vivado_bin) -mode batch -source $(update_tcl_dir)
 
 clean_libs: are_you_sure
-	rm -rf $(blackparrot_dir)
+	rm -rf $(blackparrot_dir) $(basejump_stl_dir) $(tapeout_dir)
 
 clean_build: are_you_sure
 	rm -rf $(project_dir)

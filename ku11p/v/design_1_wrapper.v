@@ -21,6 +21,7 @@ module design_1_wrapper
  import bsg_noc_pkg::*;
  import bsg_wormhole_router_pkg::*;
  import bsg_cache_pkg::*;
+ import bsg_dmc_pkg::*;
   
  #(parameter bp_params_e bp_params_p = e_bp_single_core_cfg
    `declare_bp_proc_params(bp_params_p)
@@ -152,25 +153,18 @@ module design_1_wrapper
   wire reset_gpio;
   wire [3:0] led;
   
+  wire clk_gate_lo;
+  
   BUFGCE BUFGCE_mig 
   (.O (mig_clk)
-  ,.CE(~reset)
+  ,.CE(~clk_gate_lo)
   ,.I (mig_clk_raw)
   );
   
   BUFGCE BUFGCE_lpddr
   (.O (lpddr_clk)
-  ,.CE(~reset)
+  ,.CE(~clk_gate_lo)
   ,.I (lpddr_clk_raw)
-  );
-  
-  design_2 design_2_i
-  (.clk  (ddr4_clk)
-  ,.en   (~reset)
-  ,.raw1 (mig_clk_raw)
-  ,.gate1(mig_clk)
-  ,.raw2 (lpddr_clk_raw)
-  ,.gate2(lpddr_clk)
   );
 
   wire [29:0]s_axi_araddr;
@@ -216,6 +210,15 @@ module design_1_wrapper
   wire s_axi_wready;
   wire [31:0]s_axi_wstrb;
   wire s_axi_wvalid;
+  
+  design_2 design_2_i
+  (.clk    (ddr4_clk)
+  ,.en     (~clk_gate_lo)
+  ,.arvalid(s_axi_arvalid)
+  ,.arready(s_axi_arready)
+  ,.rvalid (s_axi_rvalid)
+  ,.rready (s_axi_rready)
+  );
   
   
   wire m_axi_lite_v_lo, m_axi_lite_yumi_li;
@@ -621,7 +624,7 @@ always_comb
   ,.stream_data_o  (m_axi_lite_data_li)
   ,.stream_ready_i (m_axi_lite_ready_lo)
   );
-  
+/*  
   // CCE to cache dma
   `declare_bsg_cache_dma_pkt_s(paddr_width_p);
   
@@ -875,6 +878,313 @@ always_comb
   ,.axi_rvalid_i    (s_axi_debug_rvalid)
   ,.axi_rready_o    (s_axi_debug_rready)
   );
+*/
+
+
+  // DMC
+  //localparam ui_addr_width_p = paddr_width_p; // word address (1 TB)
+  //localparam ui_data_width_p = dword_width_p;
+  //localparam burst_data_width_p = cce_block_width_p;
+  localparam dq_data_width_p = 32;
+  //localparam dq_group_lp = dq_data_width_p >> 3;
+  localparam dmc_addr_width_gp = 28;
+  localparam dmc_data_width_gp = 32;
+
+  wire                              app_en_lo;
+  wire                              app_rdy_li;
+  wire                        [2:0] app_cmd_lo;
+  wire          [paddr_width_p-1:0] app_addr_lo;
+  wire      [dmc_addr_width_gp-1:0] app_addr_li = app_addr_lo[2+:dmc_addr_width_gp];
+
+  wire                              app_wdf_wren_lo;
+  wire                              app_wdf_rdy_li;
+  wire      [cce_block_width_p-1:0] app_wdf_data_lo;
+  wire [(cce_block_width_p>>3)-1:0] app_wdf_mask_lo;
+  wire                              app_wdf_end_lo;
+
+  wire                              app_rd_data_valid_li;
+  wire      [cce_block_width_p-1:0] app_rd_data_li;
+  wire                              app_rd_data_end_li;
+
+  wire                        [2:0] ddr_ba_lo;
+  wire                       [15:0] ddr_addr_lo;
+
+  wire   [(dq_data_width_p>>3)-1:0] ddr_dm_lo;
+  wire   [(dq_data_width_p>>3)-1:0] ddr_dm_oen_lo;
+
+  wire   [(dq_data_width_p>>3)-1:0] ddr_dqs_p_oen_lo;
+  wire   [(dq_data_width_p>>3)-1:0] ddr_dqs_p_ien_lo;
+  wire   [(dq_data_width_p>>3)-1:0] ddr_dqs_p_lo;
+  wire   [(dq_data_width_p>>3)-1:0] ddr_dqs_p_li;
+
+  wire   [(dq_data_width_p>>3)-1:0] ddr_dqs_n_oen_lo;
+  wire   [(dq_data_width_p>>3)-1:0] ddr_dqs_n_ien_lo;
+  wire   [(dq_data_width_p>>3)-1:0] ddr_dqs_n_lo;
+  wire   [(dq_data_width_p>>3)-1:0] ddr_dqs_n_li;
+
+  wire        [dq_data_width_p-1:0] ddr_dq_li;
+  wire        [dq_data_width_p-1:0] ddr_dq_lo;
+  wire        [dq_data_width_p-1:0] ddr_dq_oen_lo;
+  
+  logic dram_cmd_ready_lo;
+  assign dram_cmd_yumi_lo = dram_cmd_v_li & dram_cmd_ready_lo;
+
+  bp_me_cce_to_xui
+   #(.bp_params_p(bp_params_p)
+     ,.flit_width_p(mem_noc_flit_width_p)
+     ,.cord_width_p(mem_noc_cord_width_p)
+     ,.cid_width_p(mem_noc_cid_width_p)
+     ,.len_width_p(mem_noc_len_width_p)
+     )
+   dmc_link
+    (.clk_i(mig_clk)
+     ,.reset_i(mig_reset)
+
+     ,.mem_cmd_i(dram_cmd_li)
+     ,.mem_cmd_v_i(dram_cmd_v_li)
+     ,.mem_cmd_ready_o(dram_cmd_ready_lo)
+
+     ,.mem_resp_o(dram_resp_lo)
+     ,.mem_resp_v_o(dram_resp_v_lo)
+     ,.mem_resp_yumi_i(dram_resp_ready_li & dram_resp_v_lo)
+
+     ,.app_addr_o(app_addr_lo)
+     ,.app_cmd_o(app_cmd_lo)
+     ,.app_en_o(app_en_lo)
+     ,.app_rdy_i(app_rdy_li)
+     ,.app_wdf_wren_o(app_wdf_wren_lo)
+     ,.app_wdf_data_o(app_wdf_data_lo)
+     ,.app_wdf_mask_o(app_wdf_mask_lo)
+     ,.app_wdf_end_o(app_wdf_end_lo)
+     ,.app_wdf_rdy_i(app_wdf_rdy_li)
+     ,.app_rd_data_valid_i(app_rd_data_valid_li)
+     ,.app_rd_data_i(app_rd_data_li)
+     ,.app_rd_data_end_i(app_rd_data_end_li)
+     );
+     
+  bsg_dmc_s dmc_p;
+
+  assign dmc_p.trefi        = 16'h03ff;
+  assign dmc_p.tmrd         = 4'h1;
+  assign dmc_p.trfc         = 4'hf;
+  assign dmc_p.trc          = 4'ha;
+  assign dmc_p.trp          = 4'h3;
+  assign dmc_p.tras         = 4'h7;
+  assign dmc_p.trrd         = 4'h1;
+  assign dmc_p.trcd         = 4'h2;
+  assign dmc_p.twr          = 4'hb;
+  assign dmc_p.twtr         = 4'h7;
+  assign dmc_p.trtp         = 4'h8;
+  assign dmc_p.tcas         = 4'h3;
+  assign dmc_p.col_width    = 4'hb;
+  assign dmc_p.row_width    = 4'he;
+  assign dmc_p.bank_width   = 2'h2;
+  assign dmc_p.dqs_sel_cal  = 2'h0;
+  assign dmc_p.init_cmd_cnt = 4'h5;
+  assign dmc_p.bank_pos     = 6'h19;
+
+  wire   dmc_sys_reset_li   = mig_reset;
+
+  localparam ui_mask_width_lp   = cce_block_width_p >> 3      ;
+  localparam dfi_data_width_lp  = dmc_data_width_gp << 1      ;
+  localparam dfi_mask_width_lp  = (dq_data_width_p >> 3) << 1 ;
+  localparam axi_strb_width_lp  = axi_data_width_p>>3         ;
+  localparam dq_group_lp        = dq_data_width_p >> 3        ;
+
+  wire                         [2:0] dfi_bank;
+  wire                        [15:0] dfi_address;
+  wire                               dfi_cke;
+  wire                               dfi_cs_n;
+  wire                               dfi_ras_n;
+  wire                               dfi_cas_n;
+  wire                               dfi_we_n;
+  wire                               dfi_reset_n;
+  wire                               dfi_odt;
+  wire                               dfi_wrdata_en;
+  wire       [dfi_data_width_lp-1:0] dfi_wrdata;
+  wire       [dfi_mask_width_lp-1:0] dfi_wrdata_mask;
+  wire                               dfi_rddata_en;
+  wire       [dfi_data_width_lp-1:0] dfi_rddata;
+  wire                               dfi_rddata_valid;
+
+  wire             [dq_group_lp-1:0] dqs_p_li;
+
+  wire                                       fifo_error;
+  assign clk_gate_lo = fifo_error;
+  
+  wire                                       fifo_wr_v;
+  wire [2*dq_data_width_p+2*dq_group_lp-1:0] fifo_wr_data;
+  wire                                       fifo_wr_ready;
+  wire                                       fifo_cmd_v;
+  wire                          [3+16+7-1:0] fifo_cmd_data;
+  wire                                       fifo_cmd_ready;
+  wire                                       fifo_rd_yumi;
+  wire                                       fifo_rd_v;
+  wire               [2*dq_data_width_p-1:0] fifo_rd_data;
+
+  logic lpddr_reset;
+  bsg_sync_sync #(.width_p(1)) lpddr_bss
+    (.oclk_i      ( lpddr_clk   )
+    ,.iclk_data_i ( mig_reset     )
+    ,.oclk_data_o ( lpddr_reset       ));
+
+  bsg_dmc_controller #
+    (.ui_addr_width_p       ( dmc_addr_width_gp       )
+    ,.ui_data_width_p       ( cce_block_width_p       )
+    ,.burst_data_width_p    ( cce_block_width_p    )
+    ,.dfi_data_width_p      ( dfi_data_width_lp     ))
+  dmc_controller
+    // User interface clock and reset
+    (.ui_clk_i              ( mig_clk              )
+    ,.ui_clk_sync_rst_i     ( mig_reset              )
+    // User interface signals
+    ,.app_addr_i            ( app_addr_li            )
+    ,.app_cmd_i             ( app_cmd_lo             )
+    ,.app_en_i              ( app_en_lo              )
+    ,.app_rdy_o             ( app_rdy_li             )
+    ,.app_wdf_wren_i        ( app_wdf_wren_lo        )
+    ,.app_wdf_data_i        ( app_wdf_data_lo        )
+    ,.app_wdf_mask_i        ( app_wdf_mask_lo        )
+    ,.app_wdf_end_i         ( app_wdf_end_lo         )
+    ,.app_wdf_rdy_o         ( app_wdf_rdy_li         )
+    ,.app_rd_data_valid_o   ( app_rd_data_valid_li   )
+    ,.app_rd_data_o         ( app_rd_data_li         )
+    ,.app_rd_data_end_o     ( app_rd_data_end_li     )
+    ,.app_ref_req_i         ( 1'b0 )
+    ,.app_ref_ack_o         ()
+    ,.app_zq_req_i          ( 1'b0 )
+    ,.app_zq_ack_o          ()
+    ,.app_sr_req_i          ( 1'b0 )
+    ,.app_sr_active_o       ()
+    // DDR PHY interface clock and reset
+    ,.dfi_clk_i             ( lpddr_clk         )
+    ,.dfi_clk_sync_rst_i    ( lpddr_reset             )
+    // DDR PHY interface signals
+    ,.dfi_bank_o            ( dfi_bank              )
+    ,.dfi_address_o         ( dfi_address           )
+    ,.dfi_cke_o             ( dfi_cke               )
+    ,.dfi_cs_n_o            ( dfi_cs_n              )
+    ,.dfi_ras_n_o           ( dfi_ras_n             )
+    ,.dfi_cas_n_o           ( dfi_cas_n             )
+    ,.dfi_we_n_o            ( dfi_we_n              )
+    ,.dfi_reset_n_o         ( dfi_reset_n           )
+    ,.dfi_odt_o             ( dfi_odt               )
+    ,.dfi_wrdata_en_o       ( dfi_wrdata_en         )
+    ,.dfi_wrdata_o          ( dfi_wrdata            )
+    ,.dfi_wrdata_mask_o     ( dfi_wrdata_mask       )
+    ,.dfi_rddata_en_o       ( dfi_rddata_en         )
+    ,.dfi_rddata_i          ( dfi_rddata            )
+    ,.dfi_rddata_valid_i    ( dfi_rddata_valid      )
+    // Control and Status Registers
+    ,.dmc_p_i               ( dmc_p               )
+    //
+    ,.init_calib_complete_o (  ));
+    
+  bsg_dfi_to_fifo 
+ #(.clk_ratio_p    (15)
+  ,.dq_data_width_p(dq_data_width_p)
+  ) dfi_to_fifo
+  // DDR PHY interface clock and reset
+  (.dfi_clk_1x_i        ( lpddr_clk       )
+  ,.dfi_clk_2x_i        (         )
+  ,.dfi_rst_i           ( lpddr_reset           )
+  // DFI interface signals
+  ,.dfi_bank_i          ( dfi_bank            )
+  ,.dfi_address_i       ( dfi_address         )
+  ,.dfi_cke_i           ( dfi_cke             )
+  ,.dfi_cs_n_i          ( dfi_cs_n            )
+  ,.dfi_ras_n_i         ( dfi_ras_n           )
+  ,.dfi_cas_n_i         ( dfi_cas_n           )
+  ,.dfi_we_n_i          ( dfi_we_n            )
+  ,.dfi_reset_n_i       ( dfi_reset_n         )
+  ,.dfi_odt_i           ( dfi_odt             )
+  ,.dfi_wrdata_en_i     ( dfi_wrdata_en       )
+  ,.dfi_wrdata_i        ( dfi_wrdata          )
+  ,.dfi_wrdata_mask_i   ( dfi_wrdata_mask     )
+  ,.dfi_rddata_en_i     ( dfi_rddata_en       )
+  ,.dfi_rddata_o        ( dfi_rddata          )
+  ,.dfi_rddata_valid_o  ( dfi_rddata_valid    )
+  // fifo signals
+  ,.fifo_clk_i      (ddr4_clk)
+  ,.fifo_reset_i    (ddr4_reset)
+  ,.fifo_error_o    (fifo_error)
+
+  ,.fifo_wr_v_o     (fifo_wr_v)
+  ,.fifo_wr_data_o  (fifo_wr_data)
+  ,.fifo_wr_ready_i (fifo_wr_ready)
+
+  ,.fifo_cmd_v_o    (fifo_cmd_v)
+  ,.fifo_cmd_data_o (fifo_cmd_data)
+  ,.fifo_cmd_ready_i(fifo_cmd_ready)
+
+  ,.fifo_rd_v_i     (fifo_rd_v)
+  ,.fifo_rd_data_i  (fifo_rd_data)
+  ,.fifo_rd_yumi_o  (fifo_rd_yumi)
+  );
+
+  bsg_fifo_to_axi
+ #( .dq_data_width_p (dq_data_width_p)
+   ,.axi_id_width_p  (axi_id_width_p)
+   ,.axi_addr_width_p(axi_addr_width_p)
+   ,.axi_data_width_p(axi_data_width_p)
+   ,.axi_burst_len_p (axi_burst_len_p)
+  ) fifo_to_axi
+  (.clk_i           (ddr4_clk)
+  ,.reset_i         (ddr4_reset)
+  ,.fifo_error_i    (fifo_error)
+  ,.fifo_wr_v_i     (fifo_wr_v)
+  ,.fifo_wr_data_i  (fifo_wr_data)
+  ,.fifo_wr_ready_o (fifo_wr_ready)
+  ,.fifo_cmd_v_i    (fifo_cmd_v)
+  ,.fifo_cmd_data_i (fifo_cmd_data)
+  ,.fifo_cmd_ready_o(fifo_cmd_ready)
+  ,.fifo_rd_yumi_i  (fifo_rd_yumi)
+  ,.fifo_rd_v_o     (fifo_rd_v)
+  ,.fifo_rd_data_o  (fifo_rd_data)
+  ,.axi_awready_i   (s_axi_awready)
+  ,.axi_awid_o      (s_axi_awid)
+  ,.axi_awaddr_o    (s_axi_awaddr)
+  ,.axi_awvalid_o   (s_axi_awvalid)
+  ,.axi_awlen_o     (s_axi_awlen)
+  ,.axi_awsize_o    (s_axi_awsize)
+  ,.axi_awburst_o   (s_axi_awburst)
+  ,.axi_awcache_o   (s_axi_awcache)
+  ,.axi_awprot_o    (s_axi_awprot)
+  ,.axi_awlock_o    (s_axi_awlock)
+  ,.axi_wready_i    (s_axi_wready)
+  ,.axi_wdata_o     (s_axi_wdata)
+  ,.axi_wstrb_o     (s_axi_wstrb)
+  ,.axi_wlast_o     (s_axi_wlast)
+  ,.axi_wvalid_o    (s_axi_wvalid)
+  ,.axi_bid_i       (s_axi_bid)
+  ,.axi_bresp_i     (s_axi_bresp)
+  ,.axi_bvalid_i    (s_axi_bvalid)
+  ,.axi_bready_o    (s_axi_bready)
+  ,.axi_arready_i   (s_axi_arready)
+  ,.axi_arid_o      (s_axi_arid)
+  ,.axi_araddr_o    (s_axi_araddr)
+  ,.axi_arvalid_o   (s_axi_arvalid)
+  ,.axi_arlen_o     (s_axi_arlen)
+  ,.axi_arsize_o    (s_axi_arsize)
+  ,.axi_arburst_o   (s_axi_arburst)
+  ,.axi_arcache_o   (s_axi_arcache)
+  ,.axi_arprot_o    (s_axi_arprot)
+  ,.axi_arlock_o    (s_axi_arlock)
+  ,.axi_rid_i       (s_axi_rid)
+  ,.axi_rdata_i     (s_axi_rdata)
+  ,.axi_rresp_i     (s_axi_rresp)
+  ,.axi_rlast_i     (s_axi_rlast)
+  ,.axi_rvalid_i    (s_axi_rvalid)
+  ,.axi_rready_o    (s_axi_rready)
+  );
+  
+  // s_axi port
+  // not supported
+  assign s_axi_arqos    = '0;
+  assign s_axi_arregion = '0;
+  assign s_axi_awqos    = '0;
+  assign s_axi_awregion = '0;
+
   
   // LED breathing
   logic led_breath;
