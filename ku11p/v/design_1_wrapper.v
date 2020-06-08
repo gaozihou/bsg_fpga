@@ -210,6 +210,26 @@ module design_1_wrapper
   wire s_axi_wready;
   wire [31:0]s_axi_wstrb;
   wire s_axi_wvalid;
+
+  
+  logic clk_gate_lo_r;
+  bsg_dff #(.width_p(1)) clk_gate_lo_r_dff
+  (.clk_i (ddr4_clk)
+  ,.data_i(clk_gate_lo)
+  ,.data_o(clk_gate_lo_r)
+  );
+  
+  logic [31:0] clk_gate_count_r;
+  bsg_counter_clear_up 
+ #(.max_val_p (64'(1<<32-1))
+  ,.init_val_p(0)
+  ) clk_gate_count
+  (.clk_i     (ddr4_clk)
+  ,.reset_i   (ddr4_reset)
+  ,.clear_i   (1'b0)
+  ,.up_i      (~clk_gate_lo_r & clk_gate_lo)
+  ,.count_o   (clk_gate_count_r)
+  );
   
   design_2 design_2_i
   (.clk    (ddr4_clk)
@@ -218,6 +238,7 @@ module design_1_wrapper
   ,.arready(s_axi_arready)
   ,.rvalid (s_axi_rvalid)
   ,.rready (s_axi_rready)
+  ,.count  (clk_gate_count_r)
   );
   
   
