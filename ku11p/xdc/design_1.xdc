@@ -114,5 +114,12 @@ set_clock_groups -name async_mig_pcie -asynchronous -group [get_clocks -include_
 #set_clock_groups -name async_ddr4_mig -asynchronous -group [get_clocks -include_generated_clocks mmcm_clkout0] -group [get_clocks -include_generated_clocks mmcm_clkout1]
 #set_clock_groups -name async_ddr4_lpddr -asynchronous -group [get_clocks -include_generated_clocks mmcm_clkout0] -group [get_clocks -include_generated_clocks mmcm_clkout2]
 
+# CDC
+set_max_delay 3.333 -from [get_clocks -include_generated_clocks mmcm_clkout0] -to [get_clocks -include_generated_clocks mmcm_clkout2] -datapath_only
+set_max_delay 3.333 -from [get_clocks -include_generated_clocks mmcm_clkout2] -to [get_clocks -include_generated_clocks mmcm_clkout0] -datapath_only
+
+set_max_delay 10.000 -from [get_clocks -include_generated_clocks mmcm_clkout1] -to [get_clocks -include_generated_clocks mmcm_clkout2] -datapath_only
+set_max_delay 10.000 -from [get_clocks -include_generated_clocks mmcm_clkout2] -to [get_clocks -include_generated_clocks mmcm_clkout1] -datapath_only
+
 # Bitstream
 set_property BITSTREAM.GENERAL.COMPRESS        True  [current_design]
