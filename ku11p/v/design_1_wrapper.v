@@ -1102,8 +1102,7 @@ always_comb
     ,.init_calib_complete_o (  ));
     
   bsg_dfi_to_fifo 
- #(.clk_ratio_p    (15)
-  ,.dq_data_width_p(dq_data_width_p)
+ #(.dq_data_width_p(dq_data_width_p)
   ) dfi_to_fifo
   // DDR PHY interface clock and reset
   (.dfi_clk_1x_i        ( lpddr_clk       )
