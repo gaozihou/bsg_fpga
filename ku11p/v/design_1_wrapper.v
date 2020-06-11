@@ -220,15 +220,40 @@ module design_1_wrapper
   );
   
   logic [31:0] clk_gate_count_r;
+  logic clk_gate_count_clear_li;
   bsg_counter_clear_up 
  #(.max_val_p (64'(1<<32-1))
   ,.init_val_p(0)
   ) clk_gate_count
   (.clk_i     (ddr4_clk)
   ,.reset_i   (ddr4_reset)
-  ,.clear_i   (1'b0)
+  ,.clear_i   (clk_gate_count_clear_li)
   ,.up_i      (~clk_gate_lo_r & clk_gate_lo)
   ,.count_o   (clk_gate_count_r)
+  );
+  
+  logic [31:0] clk_gate_cycle_r;
+  bsg_counter_clear_up 
+ #(.max_val_p (64'(1<<32-1))
+  ,.init_val_p(0)
+  ) clk_gate_cycle
+  (.clk_i     (ddr4_clk)
+  ,.reset_i   (ddr4_reset)
+  ,.clear_i   (clk_gate_count_clear_li)
+  ,.up_i      (clk_gate_lo)
+  ,.count_o   (clk_gate_cycle_r)
+  );
+  
+  logic [31:0] clk_gate_total_r;
+  bsg_counter_clear_up 
+ #(.max_val_p (64'(1<<32-1))
+  ,.init_val_p(0)
+  ) clk_gate_total
+  (.clk_i     (ddr4_clk)
+  ,.reset_i   (ddr4_reset)
+  ,.clear_i   (clk_gate_count_clear_li)
+  ,.up_i      (1'b1)
+  ,.count_o   (clk_gate_total_r)
   );
   
   design_2 design_2_i
@@ -239,6 +264,8 @@ module design_1_wrapper
   ,.rvalid (s_axi_rvalid)
   ,.rready (s_axi_rready)
   ,.count  (clk_gate_count_r)
+  ,.cycle  (clk_gate_cycle_r)
+  ,.total  (clk_gate_total_r)
   );
   
   
@@ -610,6 +637,7 @@ always_comb
   
   // pcie stream host (NBF and MMIO)
   assign led[3] = nbf_done_lo;
+  assign clk_gate_count_clear_li = ~nbf_done_lo;
   
   bp_stream_host
  #(.bp_params_p(bp_params_p)
