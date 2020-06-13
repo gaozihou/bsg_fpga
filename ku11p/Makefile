@@ -21,7 +21,7 @@ basejump_stl_commit := 97552f9
 
 tapeout_dir := $(THIS_DIR)/bsg_tapeout_v1_tsmc40
 tapeout_url := $(GITHUB)gaozihou/bsg_tapeout_v1_tsmc40
-tapeout_commit := 849fd70
+tapeout_commit := 7c80a1c
 
 
 vivado_bin := $(XILINX_VIVADO)/bin/vivado
