@@ -256,6 +256,18 @@ module design_1_wrapper
   ,.count_o   (clk_gate_total_r)
   );
   
+  logic [31:0] total_loads_r;
+  bsg_counter_clear_up 
+ #(.max_val_p (64'(1<<32-1))
+  ,.init_val_p(0)
+  ) total_loads
+  (.clk_i     (ddr4_clk)
+  ,.reset_i   (ddr4_reset)
+  ,.clear_i   (clk_gate_count_clear_li)
+  ,.up_i      (s_axi_arvalid & s_axi_arready)
+  ,.count_o   (total_loads_r)
+  );
+  
   design_2 design_2_i
   (.clk    (ddr4_clk)
   ,.en     (~clk_gate_lo)
@@ -266,6 +278,7 @@ module design_1_wrapper
   ,.count  (clk_gate_count_r)
   ,.cycle  (clk_gate_cycle_r)
   ,.total  (clk_gate_total_r)
+  ,.loads  (total_loads_r)
   );
   
   
