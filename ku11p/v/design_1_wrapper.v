@@ -686,6 +686,28 @@ always_comb
   ,.stream_data_o  (m_axi_lite_data_li)
   ,.stream_ready_i (m_axi_lite_ready_lo)
   );
+  
+  logic [31:0] exec_cycle_r;
+  bsg_counter_clear_up 
+ #(.max_val_p (64'(1<<32-1))
+  ,.init_val_p(0)
+  ) exec_cycle
+  (.clk_i     (mig_clk)
+  ,.reset_i   (mig_reset)
+  ,.clear_i   (~cfg_done_lo)
+  ,.up_i      (1'b1)
+  ,.count_o   (exec_cycle_r)
+  );
+  
+  design_3 design_3_i
+  (.clk     (mig_clk)
+  ,.cycle   (exec_cycle_r)
+  ,.cmd     (host_cmd_li)
+  ,.cmd_v   (host_cmd_v_li)
+  ,.cmd_yumi(host_cmd_yumi_lo)
+  );
+  
+  
 /*  
   // CCE to cache dma
   `declare_bsg_cache_dma_pkt_s(paddr_width_p);
