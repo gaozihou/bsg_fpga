@@ -281,6 +281,8 @@ module design_1_wrapper
   ,.loads  (total_loads_r)
   );
   
+  wire proc_mem_init_done_lo;
+  wire dmc_refresh_lo;
   
   wire m_axi_lite_v_lo, m_axi_lite_yumi_li;
   wire [31:0] m_axi_lite_addr_lo, m_axi_lite_data_lo;
@@ -507,24 +509,36 @@ logic nbf_done_lo, cfg_done_lo, dram_sel_lo;
     assign nbf_cmd_v_lo = '0;
     assign nbf_resp_ready_lo = '0;
     
-    logic [7:0] counter_r, counter_n;
-    logic nbf_done_r;
+    logic [31:0] counter_r;
+    logic nbf_done_r, ref_cycle_lo, ref_cycle_lo_r;
+    
+    bsg_sync_sync #(.width_p(1)) ref_cycle_bss
+    (.oclk_i      ( mig_clk   )
+    ,.iclk_data_i ( dmc_refresh_lo )
+    ,.oclk_data_o ( ref_cycle_lo ));
+    
+    bsg_dff #(.width_p(1)) ref_cycle_dff
+    (.clk_i  (mig_clk)
+    ,.data_i (ref_cycle_lo)
+    ,.data_o (ref_cycle_lo_r)
+    );
+    
     always_ff @(posedge mig_clk)
       begin
         if (mig_reset)
           begin
-            counter_r <= 1;
+            counter_r <= 0;
             nbf_done_r <= 0;
           end
         else if (nbf_done_lo)
           begin
-            if (counter_r == 0)
+            if (counter_r == 2)
               begin
                 nbf_done_r <= 1;
               end
             else
               begin
-                counter_r <= counter_r + 1;
+                counter_r <= counter_r + (ref_cycle_lo & ~ref_cycle_lo_r);
               end
           end
       end
@@ -1162,7 +1176,8 @@ always_comb
     // Control and Status Registers
     ,.dmc_p_i               ( dmc_p               )
     //
-    ,.init_calib_complete_o (  ));
+    ,.init_calib_complete_o ( proc_mem_init_done_lo ));
+  assign dmc_refresh_lo = ~dfi_cs_n & ~dfi_ras_n & ~dfi_cas_n & dfi_we_n;
     
   bsg_dfi_to_fifo 
  #(.dq_data_width_p(dq_data_width_p)
