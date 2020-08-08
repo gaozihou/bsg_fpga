@@ -227,7 +227,7 @@ module design_1_wrapper
   ) clk_gate_count
   (.clk_i     (ddr4_clk)
   ,.reset_i   (ddr4_reset)
-  ,.clear_i   (clk_gate_count_clear_li)
+  ,.clear_i   (1'b0)
   ,.up_i      (~clk_gate_lo_r & clk_gate_lo)
   ,.count_o   (clk_gate_count_r)
   );
@@ -239,7 +239,7 @@ module design_1_wrapper
   ) clk_gate_cycle
   (.clk_i     (ddr4_clk)
   ,.reset_i   (ddr4_reset)
-  ,.clear_i   (clk_gate_count_clear_li)
+  ,.clear_i   (1'b0)
   ,.up_i      (clk_gate_lo)
   ,.count_o   (clk_gate_cycle_r)
   );
@@ -712,7 +712,20 @@ always_comb
   ,.up_i      (1'b1)
   ,.count_o   (exec_cycle_r)
   );
-  
+/*
+  logic [31:0] xui_cycle_r;
+  logic xui_node_done_lo;
+  bsg_counter_clear_up 
+ #(.max_val_p (64'(1<<32-1))
+  ,.init_val_p(0)
+  ) xui_cycle
+  (.clk_i     (mig_clk)
+  ,.reset_i   (~proc_mem_init_done_lo)
+  ,.clear_i   (1'b0)
+  ,.up_i      (~xui_node_done_lo)
+  ,.count_o   (xui_cycle_r)
+  );
+*/
   design_3 design_3_i
   (.clk     (mig_clk)
   ,.cycle   (exec_cycle_r)
@@ -1059,7 +1072,33 @@ always_comb
      ,.app_rd_data_i(app_rd_data_li)
      ,.app_rd_data_end_i(app_rd_data_end_li)
      );
-     
+
+/*
+  bsg_xui_stress_test_node
+   #(.addr_width_p(paddr_width_p)
+    ,.data_width_p(cce_block_width_p)
+    ,.num_requests_p(5000)
+    ,.nonblock_read_p(1)
+     )
+   xui_node
+    (.clk_i(mig_clk)
+     ,.reset_i(~proc_mem_init_done_lo)
+     ,.done_o(xui_node_done_lo)
+
+     ,.app_addr_o(app_addr_lo)
+     ,.app_cmd_o(app_cmd_lo)
+     ,.app_en_o(app_en_lo)
+     ,.app_rdy_i(app_rdy_li)
+     ,.app_wdf_wren_o(app_wdf_wren_lo)
+     ,.app_wdf_data_o(app_wdf_data_lo)
+     ,.app_wdf_mask_o(app_wdf_mask_lo)
+     ,.app_wdf_end_o(app_wdf_end_lo)
+     ,.app_wdf_rdy_i(app_wdf_rdy_li)
+     ,.app_rd_data_valid_i(app_rd_data_valid_li)
+     ,.app_rd_data_i(app_rd_data_li)
+     ,.app_rd_data_end_i(app_rd_data_end_li)
+     );
+*/
   bsg_dmc_s dmc_p;
 
   assign dmc_p.trefi        = 16'h03ff;
