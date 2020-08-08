@@ -17,11 +17,11 @@ blackparrot_commit := 1008321
 
 basejump_stl_dir := $(THIS_DIR)/basejump_stl
 basejump_stl_url := $(GITHUB)bespoke-silicon-group/basejump_stl
-basejump_stl_commit := 97552f9
+basejump_stl_commit := 0dba009
 
 tapeout_dir := $(THIS_DIR)/bsg_tapeout_v1_tsmc40
 tapeout_url := $(GITHUB)gaozihou/bsg_tapeout_v1_tsmc40
-tapeout_commit := 403b0bc
+tapeout_commit := a62c3f8
 
 
 vivado_bin := $(XILINX_VIVADO)/bin/vivado
